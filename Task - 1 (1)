@@ -1,0 +1,122 @@
+#include <iostream>
+#include <vector>
+#include <unordered_set>
+#include <cmath>
+#include <algorithm>
+#include <string>
+
+using namespace std;
+
+struct Row {
+    vector<string> values;
+    bool decision;
+};
+
+double calculateEntropy(const vector<Row>& data) {
+    unordered_set<bool> labels;
+    for (const auto& row : data) {
+        labels.insert(row.decision);
+    }
+    if (labels.size() <= 1) {
+        return 0.0;
+    }
+    double entropy = 0.0;
+    for (bool label : labels) {
+        int count = count_if(data.begin(), data.end(), [label](const Row& row) { return row.decision == label; });
+        double prob = static_cast<double>(count) / data.size();
+        entropy -= prob * log2(prob);
+    }
+    return entropy;
+}
+
+double calculateInformationGain(const vector<Row>& data, int featureIndex, const string& threshold) {
+    vector<Row> left, right;
+    for (const auto& row : data) {
+        if (row.values[featureIndex] <= threshold) {
+            left.push_back(row);
+        } else {
+            right.push_back(row);
+        }
+    }
+    double parentEntropy = calculateEntropy(data);
+    double leftEntropy = calculateEntropy(left);
+    double rightEntropy = calculateEntropy(right);
+    return parentEntropy - ((left.size() / static_cast<double>(data.size())) * leftEntropy +
+                             (right.size() / static_cast<double>(data.size())) * rightEntropy);
+}
+
+pair<double, string> findBestSplit(const vector<Row>& data, int featureIndex) {
+    double bestGain = 0.0;
+    string bestThreshold;
+    unordered_set<string> values;
+    for (const auto& row : data) {
+        values.insert(row.values[featureIndex]);
+    }
+    for (const auto& value : values) {
+        double gain = calculateInformationGain(data, featureIndex, value);
+        if (gain > bestGain) {
+            bestGain = gain;
+            bestThreshold = value;
+        }
+    }
+    return make_pair(bestGain, bestThreshold);
+}
+
+string buildDecisionTree(const vector<Row>& data, const vector<string>& features) {
+    if (data.empty() || unordered_set<bool>({data[0].decision}).size() == 1) {
+        return data[0].decision ? "True" : "False";
+    }
+    int bestFeatureIndex = 0;
+    string bestThreshold;
+    double maxGain = 0.0;
+    for (int i = 0; i < features.size(); ++i) {
+        auto [gain, threshold] = findBestSplit(data, i);
+        if (gain > maxGain) {
+            maxGain = gain;
+            bestFeatureIndex = i;
+            bestThreshold = threshold;
+        }
+    }
+    vector<Row> left, right;
+    for (const auto& row : data) {
+        if (row.values[bestFeatureIndex] <= bestThreshold) {
+            left.push_back(row);
+        } else {
+            right.push_back(row);
+        }
+    }
+    if (features.empty()) {
+        return data[0].decision ? "True" : "False";
+    }
+    return features[bestFeatureIndex] + " <= " + bestThreshold + " ? " + buildDecisionTree(left, features) + " : " + buildDecisionTree(right, features);
+}
+
+void printTree(const string& tree, int level = 0) {
+    cout << string(level, ' ') << tree << endl;
+}
+
+int main() {
+    vector<Row> data = {
+        {{"sunny", "hot", "high", "weak"}, false},
+        {{"sunny", "hot", "high", "strong"}, false},
+        {{"overcast", "hot", "high", "weak"}, true},
+        {{"rain", "mild", "high", "weak"}, true},
+        {{"rain", "cool", "normal", "weak"}, true},
+        {{"rain", "cool", "normal", "strong"}, false},
+        {{"overcast", "cool", "normal", "strong"}, true},
+        {{"sunny", "mild", "high", "weak"}, false},
+        {{"sunny", "cool", "normal", "weak"}, true},
+        {{"rain", "mild", "normal", "weak"}, true},
+        {{"sunny", "mild", "normal", "strong"}, true},
+        {{"overcast", "mild", "high", "strong"}, true},
+        {{"overcast", "hot", "normal", "weak"}, true},
+        {{"rain", "mild", "high", "strong"}, false}
+    };
+
+    vector<string> features = {"Outlook", "Temperature", "Humidity", "Wind"};
+
+    string tree = buildDecisionTree(data, features);
+    printTree(tree);
+
+    return 0;
+}
