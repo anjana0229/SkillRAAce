@@ -1,0 +1,202 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+
+using namespace std;
+
+class NeuralNetwork {
+private:
+    int inputSize, hiddenSize, outputSize;
+    double learningRate;
+    vector<vector<double>> weightsInputHidden, weightsHiddenOutput;
+    vector<double> biasHidden, biasOutput;
+
+public:
+    NeuralNetwork(int inSize, int hidSize, int outSize, double rate)
+        : inputSize(inSize), hiddenSize(hidSize), outputSize(outSize), learningRate(rate) {
+        srand(time(0));
+        weightsInputHidden = randomMatrix(inputSize, hiddenSize);
+        biasHidden = randomVector(hiddenSize);
+        weightsHiddenOutput = randomMatrix(hiddenSize, outputSize);
+        biasOutput = randomVector(outputSize);
+    }
+
+    vector<double> predict(const vector<double>& input) {
+        auto hiddenLayerInput = add(dot(input, weightsInputHidden), biasHidden);
+        auto hiddenLayerOutput = applySigmoid(hiddenLayerInput);
+        auto outputLayerInput = add(dot(hiddenLayerOutput, weightsHiddenOutput), biasOutput);
+        return applySigmoid(outputLayerInput);
+    }
+
+    void train(const vector<vector<double>>& inputs, const vector<vector<double>>& labels) {
+        auto hiddenLayerInput = dot(inputs, weightsInputHidden);
+        auto hiddenLayerOutput = applySigmoid(add(hiddenLayerInput, biasHidden));
+        auto outputLayerInput = dot(hiddenLayerOutput, weightsHiddenOutput);
+        auto outputLayerOutput = applySigmoid(add(outputLayerInput, biasOutput));
+
+        auto outputError = multiply(subtract(outputLayerOutput, labels), derivativeSigmoid(outputLayerOutput));
+        auto hiddenError = multiply(dot(outputError, transpose(weightsHiddenOutput)), derivativeSigmoid(hiddenLayerOutput));
+
+        weightsHiddenOutput = subtract(weightsHiddenOutput, scale(dot(transpose(hiddenLayerOutput), outputError), learningRate / inputs.size()));
+        biasOutput = subtract(biasOutput, scale(sum(outputError, 0), learningRate / inputs.size()));
+        weightsInputHidden = subtract(weightsInputHidden, scale(dot(transpose(inputs), hiddenError), learningRate / inputs.size()));
+        biasHidden = subtract(biasHidden, scale(sum(hiddenError, 0), learningRate / inputs.size()));
+    }
+
+    double computeCost(const vector<vector<double>>& inputs, const vector<vector<double>>& labels) {
+        double totalCost = 0.0;
+        for (size_t n = 0; n < inputs.size(); ++n) {
+            auto predictions = predict(inputs[n]);
+            for (size_t k = 0; k < predictions.size(); ++k)
+                totalCost += 0.5 * pow(predictions[k] - labels[n][k], 2);
+        }
+        return totalCost / inputs.size();
+    }
+
+private:
+    vector<vector<double>> randomMatrix(int rows, int cols) {
+        vector<vector<double>> matrix(rows, vector<double>(cols));
+        for (int i = 0; i < rows; ++i)
+            for (int j = 0; j < cols; ++j)
+                matrix[i][j] = static_cast<double>(rand()) / RAND_MAX;
+        return matrix;
+    }
+
+    vector<double> randomVector(int size) {
+        vector<double> vec(size);
+        for (int i = 0; i < size; ++i)
+            vec[i] = 0.0;
+        return vec;
+    }
+
+    vector<double> add(const vector<double>& a, const vector<double>& b) {
+        vector<double> result(a.size());
+        for (size_t i = 0; i < a.size(); ++i)
+            result[i] = a[i] + b[i];
+        return result;
+    }
+
+    vector<vector<double>> add(const vector<vector<double>>& a, const vector<double>& b) {
+        vector<vector<double>> result(a.size(), vector<double>(a[0].size()));
+        for (size_t i = 0; i < a.size(); ++i)
+            for (size_t j = 0; j < a[0].size(); ++j)
+                result[i][j] = a[i][j] + b[j];
+        return result;
+    }
+
+    vector<double> subtract(const vector<double>& a, const vector<double>& b) {
+        vector<double> result(a.size());
+        for (size_t i = 0; i < a.size(); ++i)
+            result[i] = a[i] - b[i];
+        return result;
+    }
+
+    vector<vector<double>> subtract(const vector<vector<double>>& a, const vector<double>& b) {
+        vector<vector<double>> result(a.size(), vector<double>(a[0].size()));
+        for (size_t i = 0; i < a.size(); ++i)
+            for (size_t j = 0; j < a[0].size(); ++j)
+                result[i][j] = a[i][j] - b[j];
+        return result;
+    }
+
+    vector<vector<double>> dot(const vector<vector<double>>& a, const vector<vector<double>>& b) {
+        int m = a.size();
+        int n = b[0].size();
+        int p = a[0].size();
+        vector<vector<double>> result(m, vector<double>(n, 0.0));
+        for (int i = 0; i < m; ++i)
+            for (int j = 0; j < n; ++j)
+                for (int k = 0; k < p; ++k)
+                    result[i][j] += a[i][k] * b[k][j];
+        return result;
+    }
+
+    vector<double> dot(const vector<double>& a, const vector<vector<double>>& b) {
+        int n = b.size();
+        int m = b[0].size();
+        vector<double> result(m, 0.0);
+        for (int j = 0; j < m; ++j)
+            for (int k = 0; k < n; ++k)
+                result[j] += a[k] * b[k][j];
+        return result;
+    }
+
+    vector<vector<double>> transpose(const vector<vector<double>>& a) {
+        int m = a.size();
+        int n = a[0].size();
+        vector<vector<double>> result(n, vector<double>(m));
+        for (int i = 0; i < m; ++i)
+            for (int j = 0; j < n; ++j)
+                result[j][i] = a[i][j];
+        return result;
+    }
+
+    vector<double> applySigmoid(const vector<double>& x) {
+        vector<double> result(x.size());
+        for (size_t i = 0; i < x.size(); ++i)
+            result[i] = 1 / (1 + exp(-x[i]));
+        return result;
+    }
+
+    vector<vector<double>> applySigmoid(const vector<vector<double>>& x) {
+        vector<vector<double>> result(x.size(), vector<double>(x[0].size()));
+        for (size_t i = 0; i < x.size(); ++i)
+            for (size_t j = 0; j < x[0].size(); ++j)
+                result[i][j] = 1 / (1 + exp(-x[i][j]));
+        return result;
+    }
+
+    vector<double> derivativeSigmoid(const vector<double>& x) {
+        vector<double> result(x.size());
+        for (size_t i = 0; i < x.size(); ++i)
+            result[i] = x[i] * (1 - x[i]);
+        return result;
+    }
+
+    vector<vector<double>> derivativeSigmoid(const vector<vector<double>>& x) {
+        vector<vector<double>> result(x.size(), vector<double>(x[0].size()));
+        for (size_t i = 0; i < x.size(); ++i)
+            for (size_t j = 0; j < x[0].size(); ++j)
+                result[i][j] = x[i][j] * (1 - x[i][j]);
+        return result;
+    }
+
+    vector<vector<double>> scale(const vector<vector<double>>& a, double scalar) {
+        vector<vector<double>> result(a.size(), vector<double>(a[0].size()));
+        for (size_t i = 0; i < a.size(); ++i)
+            for (size_t j = 0; j < a[0].size(); ++j)
+                result[i][j] = a[i][j] * scalar;
+        return result;
+    }
+
+    vector<double> scale(const vector<double>& a, double scalar) {
+        vector<double> result(a.size());
+        for (size_t i = 0; i < a.size(); ++i)
+            result[i] = a[i] * scalar;
+        return result;
+    }
+
+    vector<double> sum(const vector<vector<double>>& a, int axis) {
+        if (axis == 0) {
+            vector<double> result(a[0].size(), 0.0);
+            for (size_t i = 0; i < a.size(); ++i)
+                for (size_t j = 0; j < a[0].size(); ++j)
+                    result[j] += a[i][j];
+            return result;
+        } else {
+            vector<double> result(a.size(), 0.0);
+            for (size_t i = 0; i < a.size(); ++i)
+                for (size_t j = 0; j < a[0].size(); ++j)
+                    result[i] += a[i][j];
+            return result;
+        }
+    }
+};
+
+int main() {
+    int inSize, hidSize, outSize, numTrain, numEpochs, numTest;
+    double rate;
+
+   
