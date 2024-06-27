@@ -1,0 +1,111 @@
+#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <set>
+#include <cmath>
+#include <algorithm>
+#include <sstream>
+
+using namespace std;
+
+class NaiveBayes {
+private:
+    unordered_map<string, unordered_map<string, int>> classCounts;
+    unordered_map<string, int> docCounts;
+    int totalDocs;
+    set<string> vocab;
+
+public:
+    NaiveBayes(const vector<Document>& docs) {
+        classCounts.clear();
+        docCounts.clear();
+        totalDocs = docs.size();
+        vocab.clear();
+
+        for (const auto& doc : docs) {
+            const string& cat = doc.cat;
+            const auto& words = doc.words;
+
+            docCounts[cat]++;
+
+            auto& featCounts = classCounts[cat];
+            for (const auto& word : words) {
+                featCounts[word]++;
+                vocab.insert(word);
+            }
+        }
+    }
+
+    string classify(const Document& doc) const {
+        const auto& words = doc.words;
+        double maxProb = -INFINITY;
+        string predictedCat;
+
+        for (const auto& pair : docCounts) {
+            const string& className = pair.first;
+            double classProb = log(docCounts[className] / static_cast<double>(totalDocs));
+            for (const auto& word : words) {
+                int wordCount = classCounts[className][word];
+                double wordProb = log((wordCount + 1.0) /
+                                      (classCounts[className].size() + vocab.size()));
+                classProb += wordProb;
+            }
+
+            if (classProb > maxProb) {
+                maxProb = classProb;
+                predictedCat = className;
+            }
+        }
+
+        return predictedCat;
+    }
+
+    double accuracy(const vector<Document>& docs) const {
+        int correct = 0;
+        for (const auto& doc : docs) {
+            const string& predictedCat = classify(doc);
+            if (predictedCat == doc.cat) {
+                correct++;
+            }
+        }
+        return static_cast<double>(correct) / docs.size();
+    }
+
+    double precision(const string& category, const vector<Document>& docs) const {
+        int truePos = 0;
+        int predPos = 0;
+        for (const auto& doc : docs) {
+            if (classify(doc) == category) {
+                predPos++;
+                if (doc.cat == category) {
+                    truePos++;
+                }
+            }
+        }
+        return predPos > 0 ? static_cast<double>(truePos) / predPos : 0.0;
+    }
+
+    double recall(const string& category, const vector<Document>& docs) const {
+        int truePos = 0;
+        int actPos = 0;
+        for (const auto& doc : docs) {
+            if (doc.cat == category) {
+                actPos++;
+                if (classify(doc) == category) {
+                    truePos++;
+                }
+            }
+        }
+        return actPos > 0 ? static_cast<double>(truePos) / actPos : 0.0;
+    }
+
+    struct Document {
+        string cat;
+        vector<string> words;
+    };
+};
+
+int main() {
+    // Input handling code omitted for brevity
+    return 0;
+}
