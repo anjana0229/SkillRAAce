@@ -1,0 +1,42 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <ctime>
+#include "random_forest.hpp" // Assume RandomForestClassifier is implemented in random_forest.hpp
+
+int main() {
+    // Step 1: Load data
+    auto df = read_csv("health_data.csv");
+
+    // Step 2: Clean data
+    df.dropna();
+
+    // Encode categorical vars
+    auto symps = get_columns(df, "disease");
+    df = one_hot_encode(df, symps);
+
+    // Step 3: Set features & target
+    auto X = df.drop("disease");
+    auto y = df["disease"];
+
+    // Split data
+    auto [X_tr, X_te, y_tr, y_te] = train_test_split(X, y, 0.2, 42);
+
+    // Step 4: Train model
+    auto mdl = RandomForestClassifier(100, 42);
+    mdl.fit(X_tr, y_tr);
+
+    // Step 5: Eval model
+    auto y_pred = mdl.predict(X_te);
+    auto acc = accuracy_score(y_te, y_pred);
+    std::cout << "Accuracy: " << acc << std::endl;
+
+    // Step 6: Save model
+    save_model(mdl, "health_mdl.pkl");
+
+    // Step 7: Log model
+    std::ofstream logfile("mdl_log.txt", std::ios_base::app);
+    logfile << std::time(0) << ": Accuracy: " << acc << std::endl;
+
+    return 0;
+}
